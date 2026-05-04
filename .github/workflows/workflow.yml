@@ -23,7 +23,7 @@ env:
   
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: windows-2022
     steps:
 
       # Checkout the repo
@@ -55,11 +55,12 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: create db connection string
+        shell: pwsh
         run: |
-          CONN_STR=$(az sql db show-connection-string --client ado.net --server ${{ env.SQLSERVER_NAME }} --name ${{ env.DATABASE_NAME }} -o tsv)
-          CONN_STR=$(echo "$CONN_STR" | sed "s/<username>/${{ env.SQLADMIN_LOGIN }}/g")
-          CONN_STR=$(echo "$CONN_STR" | sed "s/<password>/${{ env.SQLADMIN_PASS }}/g")
-          echo "SQL_DB_CONN_STR=$CONN_STR" >> $GITHUB_ENV
+          $connStr = az sql db show-connection-string --client ado.net --server ${{ env.SQLSERVER_NAME }} --name ${{ env.DATABASE_NAME }} -o tsv
+          $connStr = $connStr.Replace('<username>', '${{ env.SQLADMIN_LOGIN }}')
+          $connStr = $connStr.Replace('<password>', '${{ env.SQLADMIN_PASS }}')
+          Add-Content -Path $env:GITHUB_ENV -Value "SQL_DB_CONN_STR=$connStr"
 
       - name: Update Database
         run: |
@@ -70,9 +71,13 @@ jobs:
           ConnectionStrings__MyDbConnection: ${{ env.SQL_DB_CONN_STR }}
           
       - name: Create deployment archive
+        shell: pwsh
         run: |
-          cd myapp
-          zip -r "$RUNNER_TEMP/webapp.zip" .
+          $packagePath = Join-Path $env:RUNNER_TEMP 'webapp.zip'
+          if (Test-Path $packagePath) {
+            Remove-Item $packagePath -Force
+          }
+          Compress-Archive -Path 'myapp\*' -DestinationPath $packagePath
 
       # Deploy to Azure Web App using the publish profile directly
       - name: Deploy app using publish profile
