@@ -34,6 +34,25 @@ jobs:
         uses: actions/setup-dotnet@v1
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }} 
+
+      - name: Login for az cli commands 
+        uses: azure/login@v3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: create db connection string
+        run: |
+          CONN_STR=$(az sql db show-connection-string --client ado.net --server ${{ env.SQLSERVER_NAME }} --name ${{ env.DATABASE_NAME }} -o tsv)
+          CONN_STR=$(echo $CONN_STR | sed "s/<username>/${{ env.SQLADMIN_LOGIN }}/g")
+          CONN_STR=$(echo $CONN_STR | sed "s/<password>/${{ env.SQLADMIN_PASS }}/g")
+          echo "SQL_DB_CONN_STR=$CONN_STR" >> $GITHUB_ENV
+
+      - name: Update Database
+        run: |
+          dotnet tool install --global dotnet-ef
+          dotnet ef database update
+        env:
+          ConnectionStrings__MyDbConnection: ${{ env.SQL_DB_CONN_STR }}
       
       # Run dotnet build and publish
       - name: dotnet build and publish
@@ -82,24 +101,7 @@ jobs:
             -ContentType "application/zip"
 
 
-      - name: Login for az cli commands 
-        uses: azure/login@v3
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: create db connection string
-        run: |
-          CONN_STR=$(az sql db show-connection-string --client ado.net --server ${{ env.SQLSERVER_NAME }} --name ${{ env.DATABASE_NAME }} -o tsv)
-          CONN_STR=$(echo $CONN_STR | sed "s/<username>/${{ env.SQLADMIN_LOGIN }}/g")
-          CONN_STR=$(echo $CONN_STR | sed "s/<password>/${{ env.SQLADMIN_PASS }}/g")
-          echo "SQL_DB_CONN_STR=$CONN_STR" >> $GITHUB_ENV
-
-      - name: Update Database
-        run: |
-          dotnet tool install --global dotnet-ef
-          dotnet ef database update
-        env:
-          ConnectionStrings__MyDbConnection: ${{ env.SQL_DB_CONN_STR }}
       
       # - name: Swap to production slot
       #   run: |
