@@ -74,10 +74,6 @@ jobs:
           }
           Compress-Archive -Path 'myapp\*' -DestinationPath $packagePath
 
-      - name: Start web app before deployment
-        run: |
-          az webapp start --resource-group ${{ env.AZURE_RESOURCEGROUP_NAME }} --name ${{ env.AZURE_WEBAPP_NAME }}
-
       # Deploy to Azure Web App using the publish profile directly
       - name: Deploy app using publish profile
         shell: pwsh
