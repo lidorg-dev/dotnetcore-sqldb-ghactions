@@ -29,16 +29,11 @@ jobs:
       # Checkout the repo
       - uses: actions/checkout@v4
       
-      # Setup .NET Core SDK
-      - name: Setup .NET Core
+      # Setup .NET SDK
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }} 
-
-      - name: Setup .NET Core 3.1 for EF tooling
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '3.1.x'
 
       - name: dotnet restore
         run: dotnet restore
@@ -62,12 +57,19 @@ jobs:
           $connStr = $connStr.Replace('<password>', '${{ env.SQLADMIN_PASS }}')
           Add-Content -Path $env:GITHUB_ENV -Value "SQL_DB_CONN_STR=$connStr"
 
+      - name: Configure app connection string
+        shell: pwsh
+        run: |
+          az webapp config appsettings set `
+            --resource-group ${{ env.AZURE_RESOURCEGROUP_NAME }} `
+            --name ${{ env.AZURE_WEBAPP_NAME }} `
+            --settings ConnectionStrings__MyDbConnection="$env:SQL_DB_CONN_STR"
+
       - name: Update Database
         run: |
-          dotnet tool install --global dotnet-ef --version 3.1.3
+          dotnet tool install --global dotnet-ef --version 8.0.0
           dotnet ef database update --no-build --configuration Release --project DotNetCoreSqlDb.csproj --startup-project DotNetCoreSqlDb.csproj
         env:
-          DOTNET_ROLL_FORWARD: Major
           ConnectionStrings__MyDbConnection: ${{ env.SQL_DB_CONN_STR }}
           
       - name: Create deployment archive
@@ -78,6 +80,10 @@ jobs:
             Remove-Item $packagePath -Force
           }
           Compress-Archive -Path 'myapp\*' -DestinationPath $packagePath
+
+      - name: Start web app before deployment
+        run: |
+          az webapp start --resource-group ${{ env.AZURE_RESOURCEGROUP_NAME }} --name ${{ env.AZURE_WEBAPP_NAME }}
 
       # Deploy to Azure Web App using the publish profile directly
       - name: Deploy app using publish profile
